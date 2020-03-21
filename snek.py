@@ -14,7 +14,8 @@ GAME_SIZE = 600
 WIDTH = GAME_SIZE
 HEIGHT = GAME_SIZE
 
-SNEK_SIZE = GAME_SIZE / 50
+NBR_OF_CELLS = 50
+SNEK_SIZE = GAME_SIZE / NBR_OF_CELLS
 
 game_window = pyglet.window.Window(WIDTH, HEIGHT)
 main_batch = pyglet.graphics.Batch()
@@ -179,8 +180,14 @@ class Label:
     def update(self, dt):
         self.label.text = self.onUpdate()
 
+def get_random_position():
+    return SNEK_SIZE * random.uniform(1, NBR_OF_CELLS - 1)
+
 snek = Snek(SNEK_SIZE * 10, SNEK_SIZE * 20)
-apples = [Apple(SNEK_SIZE * 30, SNEK_SIZE * 20)]
+apples = [Apple(
+    get_random_position(),
+    get_random_position()
+)]
 
 make_snek_label_text = lambda position: f'x:{math.floor(position[0])} y:{math.floor(position[1])}'
 snek_label = Label(
@@ -212,8 +219,8 @@ def on_draw():
 def update(dt):
 
     if(check_collision(snek.things[-1], apples[0])):
-        x = random.uniform(100, WIDTH - 100)
-        y = random.uniform(100, HEIGHT - 100)
+        x = get_random_position()
+        y = get_random_position()
         apples[0].set_position(x, y)
         snek.add_things(1)
 
