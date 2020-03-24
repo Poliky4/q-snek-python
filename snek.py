@@ -23,37 +23,6 @@ main_batch = pyglet.graphics.Batch()
 
 game_objects = []
 
-#SCALING_FACTOR = 1.4
-SCALING_FACTOR = 1
-class Cross:
-    def __init__(self, x, y):
-        self.cross_v = pyglet.graphics.vertex_list(
-            2,
-            ('v2f', (
-                x, y-SNEK_SIZE,
-                x, y+SNEK_SIZE
-            )),
-            ('c3B', (
-                200, 100, 100,
-                200, 100, 100
-            ))
-        )
-        self.cross_h = pyglet.graphics.vertex_list(
-            2,
-            ('v2f', (
-                x-SNEK_SIZE, y,
-                x+SNEK_SIZE, y
-            )),
-            ('c3B', (
-                200, 100, 100,
-                200, 100, 100
-            ))
-        )
-
-    def draw(self):
-        self.cross_v.draw(pyglet.graphics.GL_LINE_LOOP)
-        self.cross_h.draw(pyglet.graphics.GL_LINE_LOOP)
-
 class Thing:
     def __init__(self, x, y, color=(255, 255, 255)):
         self.position = (x, y)
@@ -77,11 +46,6 @@ class Thing:
         self.circle.vertices = self.calculate_positions(x, y)
 
     def calculate_positions(self, x, y):
-        s = SNEK_SIZE/2
-        # s2 = SNEK_SIZE * 0.95
-        s2 = (SNEK_SIZE/2) * 0.75
-        f = SCALING_FACTOR
-
         return (
             # top left
             x, y + SNEK_SIZE,
@@ -100,55 +64,17 @@ class Thing:
             x, y,
             # left
         )
-#        return (
-#            # top left
-#            x - s, y + s,
-#            # top
-#            x, y + s2,
-#            # top right
-#            x + s, y + s,
-#            # right
-#            x + s2, y,
-#            # bottom right
-#            x + s, y - s,
-#            # bottom
-#            x, y - s2,
-#            # bottom left
-#            x - s, y - s,
-#            # left
-#            x - s2, y
-#        )
 
     def update(self, dt):
         (x, y) = self.position
         self.set_position(x, y)
-
-"""
-        return (
-            # top left
-            x - s, y + s,
-            # top
-            x, y + s*f,
-            # top right
-            x + s, y + s,
-            # right
-            x + s*f, y,
-            # bottom right
-            x + s, y - s,
-            # bottom
-            x, y - s*f,
-            # bottom left
-            x - s, y - s,
-            # left
-            x - s*f, y
-        )
-"""
 
 class Snek:
     def __init__(self, x, y):
         self.position = (x, y)
         self.velocity = (1, 0)
         self.things = []
+        #self.last_velocity = None
 
         inputs.add_key_listener(
             "w", self.set_velocity((0, 1)))
@@ -176,6 +102,8 @@ class Snek:
         def _set_velocity():
             if self.velocity[0] == velocity[0]: return
             if self.velocity[1] == velocity[1]: return
+            # if velocity == self.last_velocity: raise "blaa"
+            # self.last_velocity = velocity
             self.velocity = velocity
         return _set_velocity
 
@@ -245,19 +173,6 @@ snek = Snek(
     SNEK_SIZE * math.floor(NBR_OF_CELLS/4),
 )
 
-make_snek_label_text = lambda position: f'x:{math.floor(position[0])} y:{math.floor(position[1])}'
-snek_label = Label(
-    make_snek_label_text(snek.position),
-    onUpdate=lambda: make_snek_label_text(snek.position)
-)
-
-make_apple_label_text = lambda position: f'apple x:{math.floor(position[0])} y:{math.floor(position[1])}'
-apple_label = Label(
-    make_apple_label_text(apples[0].position),
-    onUpdate=lambda: make_apple_label_text(apples[0].position),
-    y=20
-)
-
 get_score = lambda: len(snek.things) - SNEK_START_LENGTH
 make_score_label_text = lambda: f'Score: {get_score()}'
 score_label = Label(
@@ -267,8 +182,6 @@ score_label = Label(
 
 game_objects.append(apples[0])
 game_objects.append(snek)
-# game_objects.append(snek_label)
-# game_objects.append(apple_label)
 # game_objects.append(score_label)
 
 @game_window.event
@@ -279,6 +192,8 @@ def on_draw():
         obj.draw()
 
     main_batch.draw()
+
+
 
 def update(dt):
 
@@ -292,6 +207,12 @@ def update(dt):
         if(hasattr(obj, 'update')):
             obj.update(dt)
 
+    if(check_collision(snek.things[-1], apples[0])):
+        x = get_random_position()
+        y = get_random_position()
+        apples[0].set_position(x, y)
+        snek.add_things(1)
+
     (x, y) = snek.position
     if(
         x < 0 or
@@ -299,13 +220,21 @@ def update(dt):
         x + SNEK_SIZE > GAME_SIZE or
         y + SNEK_SIZE > GAME_SIZE
     ):
-        raise "outside"
+        raise Exception("outside")
 
-    for thing in snek.things[:-1]:
+    for thing in snek.things[:-2]:
         if(check_collision(snek, thing)):
-            raise "game over!"
+            raise Exception("game over!")
+
+def game_loop(dt):
+    try:
+        update(dt)
+    except Exception:
+        print("Game Over")
+        print(len(snek.things) - SNEK_START_LENGTH)
+        pyglet.app.exit()
 
 if __name__ == '__main__':
-    pyglet.clock.schedule_interval(update, 1 / GAME_SPEED)
+    pyglet.clock.schedule_interval(game_loop, 1 / GAME_SPEED)
     pyglet.app.run()
 
