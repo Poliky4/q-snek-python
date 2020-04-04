@@ -1,18 +1,25 @@
+from enum import Enum
 import math
 import random
-from utils import check_collision2
 
 # GAME_SPEED = 7.5
+# GAME_SPEED = 15
 GAME_SPEED = 30
 FPS = 1 / GAME_SPEED
 
-GAME_SIZE = 600
-
 NBR_OF_CELLS = 20
-
-THING_SIZE = GAME_SIZE / NBR_OF_CELLS
-
 SNEK_START_LENGTH = 3
+
+class ACTIONS:
+    UP = "UP"
+    DOWN = "DOWN"
+    RIGHT = "RIGHT"
+    LEFT = "LEFT"
+
+    up = (0, 1)
+    right = (1, 0)
+    down = (0, -1)
+    left = (-1, 0)
 
 class GameOverException(Exception):
     def __init__(self, *args):
@@ -22,7 +29,7 @@ def get_all_positions():
     positions = []
     for y in range(NBR_OF_CELLS):
         for x in range(NBR_OF_CELLS):
-            positions.append((x*THING_SIZE, y*THING_SIZE))
+            positions.append((x, y))
     return positions
 all_positions = set(get_all_positions())
 def get_new_apple_position(old_apple, things):
@@ -39,7 +46,6 @@ class Thing:
         self.position = (x, y)
         self.x = x
         self.y = y
-        self.size = THING_SIZE
 
     def set_position(self, x, y):
         self.x = x
@@ -52,6 +58,7 @@ class Snek(Thing):
         self.velocity = (1, 0)
         self.inputs = []
         self.things = []
+        self.score = 0
 
         self.add_things(SNEK_START_LENGTH)
 
@@ -101,8 +108,8 @@ class Snek(Thing):
         (x, y) = self.position
 
         self.set_position(
-            x + vx * THING_SIZE,
-            y + vy * THING_SIZE
+            x + vx,
+            y + vy
         )
 
         last_thing = None
@@ -124,8 +131,8 @@ class Apple(Thing):
     def __init__(self, x, y):
         super().__init__(x, y)
 
-snek_start_pos = THING_SIZE * math.floor(NBR_OF_CELLS/4)
-apple_start_pos = THING_SIZE * math.floor(NBR_OF_CELLS/2)
+snek_start_pos = math.floor(NBR_OF_CELLS/4)
+apple_start_pos = math.floor(NBR_OF_CELLS/2)
 class GameState:
     def __init__(self):
         self.snek = Snek(snek_start_pos, snek_start_pos)
@@ -133,7 +140,7 @@ class GameState:
 
 def random_pos_in_map():
     n = NBR_OF_CELLS
-    return THING_SIZE * math.floor(random.uniform(0, n - 1))
+    return math.floor(random.uniform(0, n - 1))
 
 def random_position():
     x = random_pos_in_map()
@@ -158,19 +165,21 @@ class Game:
        if(
             snek.x < 0 or
             snek.y < 0 or
-            snek.x + snek.size > GAME_SIZE or
-            snek.y + snek.size > GAME_SIZE
+            snek.x > NBR_OF_CELLS or
+            snek.y > NBR_OF_CELLS
         ):
             # print("Outside!")
-            raise GameOverException(self.get_score())
+            raise GameOverException(snek.score)
+
+    def check_collision(self, x1, y1, x2, y2):
+        return x1 == x2 and y1 == y2
 
     def handle_snek_collision(self):
         snek = self.state.snek
         for thing in snek.things[1:]:
-            has_collision = check_collision2(
+            has_collision = self.check_collision(
                 snek.x, snek.y,
-                thing.x, thing.y,
-                snek.size)
+                thing.x, thing.y)
             if has_collision:
                 # print("self collision!")
                 raise GameOverException(self.get_score())
@@ -179,14 +188,13 @@ class Game:
         snek = self.state.snek
         apple = self.state.apple
 
-        has_collision = check_collision2(
+        has_collision = self.check_collision(
             snek.x, snek.y,
-            apple.x, apple.y,
-            apple.size
-        )
+            apple.x, apple.y)
 
         if has_collision:
             self.state.apple = Apple(
                 *get_new_apple_position(apple, snek.things))
-            snek.add_things(1)
+            snek.score += 1
+            # snek.add_things(1)
 

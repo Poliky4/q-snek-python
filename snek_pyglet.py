@@ -3,16 +3,29 @@ import pyglet
 from utils import add_key_listener
 
 import snek
-from snek import GAME_SPEED, GAME_SIZE, THING_SIZE, GameOverException
+from snek import GAME_SPEED,NBR_OF_CELLS, GameOverException, ACTIONS
 
 import bot
-USE_BOT=True
+from q_bot import QBot
+q_bot = QBot()
+
+USE_BOT = True
+# USE_BOT = False
+
+# USE_Q_BOT = False
+USE_Q_BOT = True
+
+GAME_SIZE = 600
+THING_SIZE = GAME_SIZE / NBR_OF_CELLS
 
 white = (255, 255, 255)
 red = (255, 50, 50)
 
 def draw_thing(thing, color = white):
-    x, y, size = thing.x, thing.y, thing.size
+    x, y = thing.x, thing.y
+
+    x = x * THING_SIZE
+    y = y * THING_SIZE
 
     parsed_color = ()
     for i in range(4):
@@ -21,9 +34,9 @@ def draw_thing(thing, color = white):
     pyglet.graphics.draw(4, pyglet.gl.GL_LINE_LOOP,
         ('v2f', (
             x, y,
-            x + size, y,
-            x + size, y + size,
-            x, y + size
+            x + THING_SIZE, y,
+            x + THING_SIZE, y + THING_SIZE,
+            x, y + THING_SIZE
         )),
         ('c3B', parsed_color)
     )
@@ -49,12 +62,35 @@ class Game:
 
     def update(self):
         try:
-            if(USE_BOT):
-                bot.play(self.game.state)
+            self.update_bot()
             self.game.update()
         except GameOverException as score:
             print(f"Game Over! Score: {score}")
+
+            if USE_BOT is True and USE_Q_BOT is True:
+                q_bot.trigger_game_over()
+
             self.setup()
+
+    def update_bot(self):
+        if USE_BOT:
+            snek = self.game.state.snek
+
+            action = None
+
+            if USE_Q_BOT:
+                action = q_bot.next_step(self.game.state)
+            else:
+                action = bot.play(self.game.state)
+
+            if action is ACTIONS.UP:
+                snek.set_velocity(ACTIONS.up)
+            elif action is ACTIONS.RIGHT:
+                snek.set_velocity(ACTIONS.right)
+            elif action is ACTIONS.DOWN:
+                snek.set_velocity(ACTIONS.down)
+            elif action is ACTIONS.LEFT:
+                snek.set_velocity(ACTIONS.left)
 
     def setup(self):
         self.game = snek.Game()

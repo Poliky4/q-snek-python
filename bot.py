@@ -1,6 +1,11 @@
 import random
 
-from snek import THING_SIZE, GAME_SIZE
+from snek import NBR_OF_CELLS
+from snek import ACTIONS
+UP = ACTIONS.UP
+RIGHT = ACTIONS.RIGHT
+DOWN = ACTIONS.DOWN
+LEFT = ACTIONS.LEFT
 
 up = (0, 1)
 right = (1, 0)
@@ -61,16 +66,14 @@ def play(state, tries=MAX_RETRIES):
 
     (vx, vy) = chosen_direction
     new_position = (
-        sx + vx * THING_SIZE,
-        sy + vy * THING_SIZE
-    )
+        sx + vx,
+        sy + vy)
 
     is_outside = lambda position:(
         position[0] < 0 or
         position[1] < 0 or
-        position[0] + snek.size > GAME_SIZE or
-        position[1] + snek.size > GAME_SIZE
-    )
+        position[0] > NBR_OF_CELLS or
+        position[1] > NBR_OF_CELLS)
 
     if (is_outside(new_position) or
     chosen_direction == snek.inverse_velocity(snek.velocity) or
@@ -81,5 +84,15 @@ def play(state, tries=MAX_RETRIES):
         else:
             return play(state, tries=tries-1)
 
-    snek.set_velocity(chosen_direction)
+    # return action
+    # snek.set_velocity(chosen_direction)
+    cd = chosen_direction
+    if cd is up:
+        return UP
+    elif cd is down:
+        return DOWN
+    elif cd is right:
+        return RIGHT
+    else:
+        return LEFT
 
