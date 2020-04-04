@@ -22,10 +22,16 @@ action_map = (
 )
 
 class Rewards:
+    apple = 10
+    move_closer = 1
+    move_away = 1
+    lose = 10
+"""
     apple = 300
     move_closer = 10
     move_away = 10
     lose = 100
+"""
 
 class QBot:
     def __init__(self):
