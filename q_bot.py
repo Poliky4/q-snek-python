@@ -53,11 +53,18 @@ class QBot:
         else:
             self.Q_table[config] += reward
 
+    def get_possible_actions(self, snek):
+        return [
+            action
+            for action
+            in actions
+            if action
+            not in snek.find_invalid_moves()
+        ]
+
     def get_action(self, game_state):
         snek = game_state.snek
-        possible_actions = [
-            action for action in actions if action not in snek.find_invalid_moves()
-        ]
+        possible_actions = self.get_possible_actions(snek)
         take_random_action = random.choice([
             *[True for i in range(max(1, 30 - self.trials))],
             *[False for i in range(100)]])
@@ -82,24 +89,27 @@ class QBot:
 
     def reward_snek(self, reward, was_successful):
         was_successful = not was_successful
-        min_frame_size = 5 # eh?
-        # theta = 1 # tolerable deviation
-        frame_size = self.episode_frame_count
-        # TODO: math.min
-        if frame_size < min_frame_size: frame_size = min_frame_size
+        min_frame_size = 5
+        frame_size = max(min_frame_size, self.episode_frame_count)
 
         i = len(self.frame_buffer) - 2;
         while(i >= 0 and frame_size > 0):
             config = self.frame_buffer[i]
             (state, action) = config
-            reward_for_state = reward - 0 # - distance
+            reward_for_state = reward
 
             if was_successful is not True:
                 reward_for_state = -reward_for_state
 
-            # (future_state, _) = frame_buffer[i+1]
-            update_value = self.alpha*(reward_for_state - self.get_Q(state, action))
-            # print(f"Setting reward {update_value} for action {action}")
+            (future_state, _) = self.frame_buffer[i+1]
+            optimal_future_value = max([
+                self.get_Q(future_state, action)
+                for action in actions])
+            update_value = self.alpha * (
+                reward_for_state +
+                self.gamma * optimal_future_value -
+                self.get_Q(state, action)
+            )
             self.set_Q(state, action, update_value)
 
             frame_size -= 1
