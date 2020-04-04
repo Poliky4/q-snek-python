@@ -22,14 +22,14 @@ action_map = (
 )
 
 class Rewards:
-    apple = 10
-    move_closer = 1
-    move_away = 1
-    lose = 10
-"""
     apple = 300
     move_closer = 10
     move_away = 10
+    lose = 100
+"""
+    apple = 100
+    move_closer = 1
+    move_away = 1
     lose = 100
 """
 
@@ -55,11 +55,16 @@ class QBot:
         config = (state, action)
 
         if config not in self.Q_table:
+            # print("set q, new")
             self.Q_table[config] = 0
         else:
+            # print("set q, old")
             self.Q_table[config] += reward
 
     def get_possible_actions(self, snek):
+        # is this really working?
+        # isnt actions list of ACTIONS.ACTION
+        # but snek.inval... is ACTIONS.action?
         return [
             action
             for action
@@ -95,7 +100,7 @@ class QBot:
 
     def reward_snek(self, reward, was_successful):
         was_successful = not was_successful
-        min_frame_size = 5
+        min_frame_size = 50
         frame_size = max(min_frame_size, self.episode_frame_count)
 
         i = len(self.frame_buffer) - 2;
@@ -121,14 +126,17 @@ class QBot:
             frame_size -= 1
             i -= 1
 
-        self.frame_buffer = self.frame_buffer[:]
+        self.frame_buffer = self.frame_buffer[-min_frame_size:]
         self.episode_frame_count = 0
 
     def trigger_game_over(self):
         self.reward_snek(Rewards.lose, False)
         self.episode_frame_count = 0
         self.trials += 1
-        print("Game Over", self.trials, len(self.Q_table))
+        print("Game Over",
+            "trials", self.trials,
+            "rules", len(self.Q_table)
+        )
 
     def clamp(self, mi, ma, val):
         return max(mi, min(val, ma))
@@ -157,7 +165,16 @@ class QBot:
         down = snek_y
         up = NBR_OF_CELLS - snek_y
 
-        return min(left, right, down, up)
+        return (
+            min(left, right),
+            min(down, up)
+        )
+
+        """
+        return min(
+            left, right, down, up
+        )
+        """
 
     def get_distance_reward(self, reward, distance):
         percentage = (NBR_OF_CELLS - distance) / NBR_OF_CELLS
