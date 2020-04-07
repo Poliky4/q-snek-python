@@ -4,7 +4,8 @@ import random
 
 # GAME_SPEED = 7.5
 # GAME_SPEED = 15
-GAME_SPEED = 30
+# GAME_SPEED = 30
+GAME_SPEED = 60
 FPS = 1 / GAME_SPEED
 
 NBR_OF_CELLS = 20
@@ -32,12 +33,12 @@ def get_all_positions():
             positions.append((x, y))
     return positions
 all_positions = set(get_all_positions())
-def get_new_apple_position(old_apple, things):
+def get_new_apple_position(old_position, things):
     things_positions = [thing.position for thing in things]
     possible_positions = list(
         all_positions -
         set(things_positions) -
-        set([old_apple.position])
+        set([old_position])
     )
     return random.choice(possible_positions)
 
@@ -131,11 +132,12 @@ class Apple(Thing):
     def __init__(self, x, y):
         super().__init__(x, y)
 
-snek_start_pos = math.floor(NBR_OF_CELLS/4)
+#snek_start_pos = math.floor(NBR_OF_CELLS/4)
 apple_start_pos = math.floor(NBR_OF_CELLS/2)
+
 class GameState:
     def __init__(self):
-        self.snek = Snek(snek_start_pos, snek_start_pos)
+        self.snek = Snek(*get_new_apple_position(apple_start_pos, []))
         self.apple = Apple(apple_start_pos, apple_start_pos)
 
 def random_pos_in_map():
@@ -181,8 +183,9 @@ class Game:
                 snek.x, snek.y,
                 thing.x, thing.y)
             if has_collision:
+                #raise GameOverException(self.get_score())
+                pass
                 # print("self collision!")
-                raise GameOverException(self.get_score())
 
     def handle_apple_collision(self):
         snek = self.state.snek
@@ -194,7 +197,7 @@ class Game:
 
         if has_collision:
             self.state.apple = Apple(
-                *get_new_apple_position(apple, snek.things))
+                *get_new_apple_position(apple.position, snek.things))
             snek.score += 1
-            # snek.add_things(1)
+            snek.add_things(1)
 

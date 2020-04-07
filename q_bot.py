@@ -7,6 +7,11 @@ RIGHT = ACTIONS.RIGHT
 DOWN = ACTIONS.DOWN
 LEFT = ACTIONS.LEFT
 
+up = ACTIONS.up
+right = ACTIONS.right
+down = ACTIONS.down
+left = ACTIONS.left
+
 actions = [
     UP,
     RIGHT,
@@ -21,17 +26,21 @@ action_map = (
     (LEFT, ACTIONS.left),
 )
 
+def map_action(action):
+    return (
+        UP if action == up else
+        up if action == UP else
+        RIGHT if action == right else
+        right if action == RIGHT else
+        DOWN if action == down else
+        down if action == DOWN else
+        LEFT if action == left else
+        left if action == LEFT else print("Error")
+    )
+
 class Rewards:
-    apple = 300
-    move_closer = 10
-    move_away = 10
-    lose = 100
-"""
-    apple = 100
-    move_closer = 1
-    move_away = 1
-    lose = 100
-"""
+    apple = 1000
+    lose = -1000
 
 class QBot:
     def __init__(self):
@@ -43,6 +52,8 @@ class QBot:
         self.trials = 0
         self.last_apple_position = None
         self.last_snek_position = None
+        self.random_moves = 0
+        self.random_chance = 0
 
     def get_Q(self, state, action):
         config = (state, action)
@@ -53,71 +64,106 @@ class QBot:
 
     def set_Q(self, state, action, reward):
         config = (state, action)
-
         if config not in self.Q_table:
-            # print("set q, new")
             self.Q_table[config] = 0
         else:
-            # print("set q, old")
             self.Q_table[config] += reward
 
-    def get_possible_actions(self, snek):
-        # is this really working?
-        # isnt actions list of ACTIONS.ACTION
-        # but snek.inval... is ACTIONS.action?
-        return [
+    def out_of_bounds(self, snek, action):
+        (sx, sy) = snek.position
+        (vx, vy) = action
+        (new_x, new_y) = (sx + vx, sy + vy)
+        is_outside = (new_x == 0 or
+            new_y == 0 or
+            new_x == NBR_OF_CELLS or
+            new_y == NBR_OF_CELLS)
+        return is_outside
+
+    def get_possible_actions(self, snek, cheat=False):
+        possible_actions = [
             action
             for action
             in actions
-            if action
-            not in snek.find_invalid_moves()
+            if map_action(action) != snek.inverse_velocity(
+                snek.velocity)
+            # and not self.out_of_bounds(snek, action)
         ]
+        if cheat is True:
+            possible_actions = [
+                action
+                for action
+                in actions if not self.out_of_bounds(
+                    snek, map_action(action))
+            ]
+
+        if not possible_actions:
+            return actions
+        return possible_actions
+
+    def make_env(self, snek, apple):
+        return (
+            self.get_distance_to_edge(snek),
+            self.get_distance2(snek, apple),
+            snek.velocity
+        )
 
     def get_action(self, game_state):
         snek = game_state.snek
-        possible_actions = self.get_possible_actions(snek)
-        take_random_action = random.choice([
-            *[True for i in range(max(1, 30 - self.trials))],
-            *[False for i in range(100)]])
-        if take_random_action:
-            # print("Going random!")
-            return random.choice(possible_actions)
 
-        env = (
-            self.get_distance_to_edge(game_state.snek),
-            self.get_distance2(game_state.snek, game_state.apple),
-            game_state.snek.velocity
+        possible_actions = self.get_possible_actions(snek)
+
+        chance_initial = 60
+        chance_adjuster = self.trials
+        chance = max(1, chance_initial - chance_adjuster)
+        self.random_chance = chance / 100
+        take_random_action = random.choice([
+            *[True for i in range(chance)],
+            *[False for i in range(200)]])
+        if take_random_action:
+            self.random_moves += 1
+            #print("Going random!")
+            #return random.choice(possible_actions)
+            return random.choice(
+                self.get_possible_actions(snek, cheat=True))
+
+        env = self.make_env(game_state.snek, game_state.apple)
+        rewards = [
+            (action, self.get_Q(env, action))
+            for action
+            in possible_actions
+        ]
+        sorted_actions = sorted(
+            rewards,
+            key=lambda r: r[1],
+            reverse=True
         )
-        rewards = [(action, self.get_Q(env, action)) for action in possible_actions]
-        sorted_actions = sorted(rewards, key=lambda r: r[1])
         (best_action, best_score) = sorted_actions[0]
-        best_actions = [action for action in sorted_actions if action[1] is best_score]
+        best_actions = [
+            action
+            for action
+            in sorted_actions
+            if action[1] == best_score
+        ]
         if len(best_actions) > 1:
             (random_action, _) = random.choice(best_actions)
             return random_action
         # print("best action", rewards)
         return best_action
 
-    def reward_snek(self, reward, was_successful):
-        was_successful = not was_successful
-        min_frame_size = 50
+    def reward_snek(self, reward):
+        min_frame_size = 5
         frame_size = max(min_frame_size, self.episode_frame_count)
 
         i = len(self.frame_buffer) - 2;
         while(i >= 0 and frame_size > 0):
-            config = self.frame_buffer[i]
-            (state, action) = config
-            reward_for_state = reward
-
-            if was_successful is not True:
-                reward_for_state = -reward_for_state
+            (state, action) = self.frame_buffer[i]
 
             (future_state, _) = self.frame_buffer[i+1]
             optimal_future_value = max([
                 self.get_Q(future_state, action)
                 for action in actions])
             update_value = self.alpha * (
-                reward_for_state +
+                reward +
                 self.gamma * optimal_future_value -
                 self.get_Q(state, action)
             )
@@ -130,25 +176,27 @@ class QBot:
         self.episode_frame_count = 0
 
     def trigger_game_over(self):
-        self.reward_snek(Rewards.lose, False)
+        self.reward_snek(Rewards.lose)
         self.episode_frame_count = 0
         self.trials += 1
         print("Game Over",
             "trials", self.trials,
             "rules", len(self.Q_table)
         )
+        # reset episode?
+        self.end_episode()
+
+    def end_episode(self):
+        self.frame_buffer = [] # ?
+        self.episode_frame_count = 0 # ?
 
     def clamp(self, mi, ma, val):
         return max(mi, min(val, ma))
     def normalize(self, num):
         return self.clamp(-1, 1, num)
-
-    # cartesian?
     def get_distance(self, ax, ay, bx, by):
         return math.sqrt(math.pow(ax-bx, 2) + math.pow(ay-by, 2))
 
-    # (vx, vy)
-    # ([-1,0,1], [-1,0,1])
     def get_distance2(self, a, b):
         (ax, ay) = a.position
         (bx, by) = b.position
@@ -165,70 +213,34 @@ class QBot:
         down = snek_y
         up = NBR_OF_CELLS - snek_y
 
-        return (
-            min(left, right),
-            min(down, up)
-        )
+        close_to_wall = ()
 
-        """
-        return min(
-            left, right, down, up
-        )
-        """
+        if left == 0:
+            close_to_wall += (LEFT,)
+        if right == 0:
+            close_to_wall += (RIGHT,)
+        if up == 0:
+            close_to_wall += (UP,)
+        if down == 0:
+            close_to_wall += (DOWN,)
 
-    def get_distance_reward(self, reward, distance):
-        percentage = (NBR_OF_CELLS - distance) / NBR_OF_CELLS
-        # print("distance reward %", distance, percentage)
-        return reward * percentage
+        return close_to_wall
 
     def next_step(self, state):
         apple = state.apple
         snek = state.snek
 
-        # print("Q_table", self.Q_table)
         if self.last_apple_position is not None:
-            # snek eat apple
-            if snek.position == apple.position:
-                print("APPLEZ!")
-                self.reward_snek(Rewards.apple, True)
-            else:
-                # snek move closer to apple
-                old_distance = self.get_distance(
-                    *self.last_snek_position,
-                    *self.last_apple_position)
-                new_distance = self.get_distance(
-                    *snek.position,
-                    *apple.position)
-
-                getting_closer = new_distance < old_distance
-                # print(f"old_distance - new_distance", old_distance - new_distance)
-                # print("closer" if getting_closer is True else "away")
-                if getting_closer:
-                    #score = Rewards.move_closer + Rewards.move_closer * 
-                    reward = self.get_distance_reward(
-                            Rewards.move_closer, new_distance)
-                    self.reward_snek(reward, True)
-                else:
-                    reward = self.get_distance_reward(
-                            Rewards.move_away, new_distance)
-                    self.reward_snek(reward, False)
+            if snek.position == self.last_apple_position:
+                # snek eat apple
+                self.reward_snek(Rewards.apple - self.episode_frame_count)
 
         self.last_apple_position = apple.position
         self.last_snek_position = snek.position
         action_to_be_taken = self.get_action(state)
 
-        # replace this config
-        # with something less specific
-        # like (is_above, is_right, velocity)
-        # but it's also going to need to learn
-        # not to crash into self or wall
-        # so that information is going in here
-        # like check_future(has_crash or out_of_bounds) = bad snek
-        config = ((
-                self.get_distance_to_edge(snek),
-                self.get_distance2(snek, apple),
-                snek.velocity
-            ),
+        config = (
+            self.make_env(snek, apple),
             action_to_be_taken
         )
 
