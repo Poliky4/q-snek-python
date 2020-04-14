@@ -1,6 +1,8 @@
 import math
 import random
 
+import matplotlib.pyplot as plt
+
 from snek import ACTIONS, NBR_OF_CELLS
 UP = ACTIONS.UP
 RIGHT = ACTIONS.RIGHT
@@ -39,13 +41,16 @@ def map_action(action):
     )
 
 class Rewards:
-    apple = 1000
+    apple = 100
     lose = -1000
+
+MAX_TRIALS = 1000
+SAMPLE_EVERY = 1
 
 class QBot:
     def __init__(self):
         self.Q_table = dict()
-        self.gamma = 0.8 # discounted rewards
+        self.gamma = 0.95 #0.8 # discounted rewards
         self.alpha = 0.1 # learning rate
         self.frame_buffer = []
         self.episode_frame_count = 0
@@ -54,30 +59,111 @@ class QBot:
         self.last_snek_position = None
         self.random_moves = 0
         self.random_chance = 0
+        self.vis_data = {}
+        self.vis_data['episodes'] = []
+        self.vis_data['scores'] = []
+        self.vis_data['rules'] = []
 
-    def get_Q(self, state, action):
-        config = (state, action)
-        if config not in self.Q_table:
-            return 0
+    def show_vis_data(self):
+        data = self.vis_data
+        plt.plot(data['episodes'], data['scores'], label="Score")
+        plt.plot(data['episodes'], data['rules'], label="Rules")
+        plt.legend(loc=4)
+        plt.show()
+
+    def make_vis_data(self, snek):
+        if self.trials % SAMPLE_EVERY == 0:
+            self.vis_data['episodes'].append(self.trials)
+            self.vis_data['scores'].append(snek.score)
+            self.vis_data['rules'].append(len(self.Q_table))
+
+    def make_env(self, snek, apple):
+        return (
+            #self.get_distance_to_edge(snek),
+            self.make_local_map(snek, apple),
+            #self.get_distance2(snek, apple),
+            #snek.velocity
+        )
+
+    def make_local_map(self, snek, apple):
+        return (
+            (LEFT, self.check_direction(snek, apple, left)),
+            (RIGHT, self.check_direction(snek, apple, right)),
+            (UP, self.check_direction(snek, apple, up)),
+            (DOWN, self.check_direction(snek, apple, down))
+        )
+
+    def check_direction(
+        self,
+        snek, apple,
+        direction,
+        position = None
+    ):
+        if position is None:
+            position = snek.position
+
+        d = map_action(direction)
+
+        (vx, vy) = snek.velocity
+        (sx, sy) = position
+        (ax, ay) = apple.position
+        (dx, dy) = direction
+        new_position = (
+            sx + dx,
+            sy + dy
+        )
+        (nx, ny) = new_position
+
+        """
+        is_direction_right = map_action(direction) == RIGHT
+        is_going_right = vx == 1
+        is_apple_right = sx < ax
+        if is_direction_right and is_going_right and is_apple_right:
+                    return "APPLE THIS WAY"
+        """
+
+        if (
+            position is snek.position and
+            self.is_outside(new_position)):
+            #return None
+            return "WALL"
         else:
-            return self.Q_table[config]
+            if (d is UP or d is DOWN) and ny == ay:
+                return "APPLE!"
+            elif (d is RIGHT or d is LEFT) and nx == ax:
+                return "APPLE!"
+            elif self.is_outside(new_position):
+                return None
+            else:
+                return self.check_direction(snek, apple, direction,
+                    position=new_position)
 
-    def set_Q(self, state, action, reward):
-        config = (state, action)
-        if config not in self.Q_table:
-            self.Q_table[config] = 0
-        else:
-            self.Q_table[config] += reward
+    def is_outside(self, position):
+        (x, y) = position
+        return not 0 <= x <= NBR_OF_CELLS or not 0 <= y <= NBR_OF_CELLS
 
-    def out_of_bounds(self, snek, action):
-        (sx, sy) = snek.position
-        (vx, vy) = action
-        (new_x, new_y) = (sx + vx, sy + vy)
-        is_outside = (new_x == 0 or
-            new_y == 0 or
-            new_x == NBR_OF_CELLS or
-            new_y == NBR_OF_CELLS)
-        return is_outside
+    def next_step(self, state):
+        apple = state.apple
+        snek = state.snek
+
+        if snek.position == self.last_apple_position:
+            # snek eat apple
+            self.reward_snek(Rewards.apple)
+            self.end_episode()
+
+        self.last_apple_position = apple.position
+        self.last_snek_position = snek.position
+        action_to_be_taken = self.get_action(state)
+
+        config = (
+            self.make_env(snek, apple),
+            action_to_be_taken
+        )
+
+        self.frame_buffer.append(config)
+        self.episode_frame_count += 1
+
+        return action_to_be_taken
 
     def get_possible_actions(self, snek, cheat=False):
         possible_actions = [
@@ -88,24 +174,21 @@ class QBot:
                 snek.velocity)
             # and not self.out_of_bounds(snek, action)
         ]
+        """
         if cheat is True:
+            old_length = len(possible_actions)
             possible_actions = [
                 action
                 for action
-                in actions if not self.out_of_bounds(
-                    snek, map_action(action))
+                in possible_actions if self.check_direction(
+                    snek, map_action(action)) is None
             ]
-
+            if old_length != len(possible_actions):
+                print("CHEATING", old_length, len(possible_actions))
         if not possible_actions:
             return actions
+        """
         return possible_actions
-
-    def make_env(self, snek, apple):
-        return (
-            self.get_distance_to_edge(snek),
-            self.get_distance2(snek, apple),
-            snek.velocity
-        )
 
     def get_action(self, game_state):
         snek = game_state.snek
@@ -175,16 +258,14 @@ class QBot:
         self.frame_buffer = self.frame_buffer[-min_frame_size:]
         self.episode_frame_count = 0
 
-    def trigger_game_over(self):
+    def trigger_game_over(self, snek):
         self.reward_snek(Rewards.lose)
-        self.episode_frame_count = 0
-        self.trials += 1
-        print("Game Over",
-            "trials", self.trials,
-            "rules", len(self.Q_table)
-        )
-        # reset episode?
+        self.make_vis_data(snek)
         self.end_episode()
+        self.trials += 1
+
+        #if self.trials >= MAX_TRIALS:
+            #self.show_vis_data()
 
     def end_episode(self):
         self.frame_buffer = [] # ?
@@ -226,26 +307,27 @@ class QBot:
 
         return close_to_wall
 
-    def next_step(self, state):
-        apple = state.apple
-        snek = state.snek
+    def get_Q(self, state, action):
+        config = (state, action)
+        if config not in self.Q_table:
+            return 0
+        else:
+            return self.Q_table[config]
 
-        if self.last_apple_position is not None:
-            if snek.position == self.last_apple_position:
-                # snek eat apple
-                self.reward_snek(Rewards.apple - self.episode_frame_count)
+    def set_Q(self, state, action, reward):
+        config = (state, action)
+        if config not in self.Q_table:
+            self.Q_table[config] = 0
+        else:
+            self.Q_table[config] += reward
 
-        self.last_apple_position = apple.position
-        self.last_snek_position = snek.position
-        action_to_be_taken = self.get_action(state)
-
-        config = (
-            self.make_env(snek, apple),
-            action_to_be_taken
-        )
-
-        self.frame_buffer.append(config)
-        self.episode_frame_count += 1
-
-        return action_to_be_taken
+    def out_of_bounds(self, snek, action):
+        (sx, sy) = snek.position
+        (vx, vy) = action
+        (new_x, new_y) = (sx + vx, sy + vy)
+        is_outside = (new_x == 0 or
+            new_y == 0 or
+            new_x == NBR_OF_CELLS or
+            new_y == NBR_OF_CELLS)
+        return is_outside
 

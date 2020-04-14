@@ -1,3 +1,4 @@
+import random
 import pyglet
 
 from utils import add_key_listener
@@ -9,6 +10,7 @@ import bot
 from q_bot import QBot
 q_bot = QBot()
 
+RENDER = True
 USE_BOT = True
 # USE_BOT = False
 
@@ -20,10 +22,23 @@ THING_SIZE = GAME_SIZE / (NBR_OF_CELLS + 1)
 
 white = (255, 255, 255)
 red = (255, 50, 50)
+_r = lambda: random.randrange(150, 250)
+random_color = lambda: (_r(), _r(), _r())
 
-def draw_thing(thing, color = white):
+class Bool:
+    def __init__(self, is_true = True):
+        self.is_true = is_true
+        add_key_listener("s", self.toggle)
+
+    def toggle(self):
+        self.is_true = not self.is_true
+
+SHOW_STATS = Bool(True)
+
+def draw_thing(thing, color = None):
+    if color is None: color = random_color()
+
     x, y = thing.x, thing.y
-
     x = x * THING_SIZE
     y = y * THING_SIZE
 
@@ -53,8 +68,8 @@ class Game:
         self.last_scores = []
         self.current_average = 0
 
-        self.setup_labels()
         self.setup()
+        self.setup_labels()
 
         @self.window.event
         def on_draw():
@@ -62,15 +77,24 @@ class Game:
             for thing in self.game.state.snek.things:
                 draw_thing(thing)
             draw_thing(self.game.state.apple, red)
-            self.update_and_draw_labels()
+            if SHOW_STATS.is_true:
+                self.update_and_draw_labels()
 
         pyglet.clock.schedule_interval(
             lambda dt: self.update(),
             1 / GAME_SPEED)
         pyglet.app.run()
 
+    def make_state_label(self):
+        make_state = lambda: q_bot.make_env(
+            self.game.state.snek, self.game.state.apple)
+
+        self.make_label(
+                on_update = lambda: f"map: {make_state()[0]}")
+
     def setup_labels(self):
         if USE_Q_BOT:
+            #self.make_state_label()
             self.make_label(
                 on_update = lambda: f"random chance: {round(q_bot.random_chance*100)}%")
             self.make_label(
@@ -115,10 +139,10 @@ class Game:
 
     def handle_game_over(self):
         score = self.game.state.snek.score
-        print(f"Game Over! Score: {score}")
+        # print(f"Game Over! Score: {score}")
 
         if USE_BOT is True and USE_Q_BOT is True:
-            q_bot.trigger_game_over()
+            q_bot.trigger_game_over(self.game.state.snek)
 
         if score > self.best_score:
             self.best_score = score

@@ -5,11 +5,13 @@ import random
 # GAME_SPEED = 7.5
 # GAME_SPEED = 15
 # GAME_SPEED = 30
-GAME_SPEED = 60
+# GAME_SPEED = 60
+GAME_SPEED = 120
 FPS = 1 / GAME_SPEED
 
 NBR_OF_CELLS = 20
 SNEK_START_LENGTH = 3
+SNEK_MAX_LENGTH = 21
 
 class ACTIONS:
     UP = "UP"
@@ -199,5 +201,6 @@ class Game:
             self.state.apple = Apple(
                 *get_new_apple_position(apple.position, snek.things))
             snek.score += 1
-            snek.add_things(1)
+            if len(snek.things) < SNEK_MAX_LENGTH:
+                snek.add_things(1)
 

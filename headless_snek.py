@@ -17,7 +17,7 @@ make_clean_board = lambda: [[
     ' ' for x in range(NBR_OF_CELLS)
 ] for y in range(NBR_OF_CELLS)]
 
-MAX_ATTEMPTS = 1000
+MAX_ATTEMPTS = 10000
 
 class HeadlessSnek:
     def __init__(self):
@@ -63,7 +63,8 @@ class HeadlessSnek:
             self.game.update()
             # self.draw()
         except GameOverException as score:
-            if USE_Q_BOT: q_bot.trigger_game_over()
+            if USE_Q_BOT:
+                q_bot.trigger_game_over(self.game.state.snek)
 
             score = int(str(score))
             self.best_score = score if score > self.best_score else self.best_score
@@ -73,7 +74,6 @@ class HeadlessSnek:
 
             self.average_score = (self.attempts * self.average_score + score) / (self.attempts + 1)
 
-            # if self.attempts >= MAX_ATTEMPTS:
             if True:
                 msg = 'Game Over!'
                 msg += f' A: {str(self.attempts).ljust(4)}'
@@ -82,9 +82,12 @@ class HeadlessSnek:
                 msg += f' W: {str(self.worst_score).ljust(4)}'
                 msg += f' A: {str(self.average_score).ljust(4)}'
                 print(msg)
+
+            if self.attempts < MAX_ATTEMPTS:
                 self.start_new_game()
-                # raise "game over!"
-            #else:
+            else:
+                if USE_Q_BOT:
+                    q_bot.show_vis_data()
 
     def draw(self):
         snek = self.game.state.snek
