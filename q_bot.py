@@ -1,8 +1,10 @@
+import numpy as np
 import math
 import random
 
 import matplotlib.pyplot as plt
 
+import bot
 from snek import ACTIONS, NBR_OF_CELLS
 UP = ACTIONS.UP
 RIGHT = ACTIONS.RIGHT
@@ -41,16 +43,20 @@ def map_action(action):
     )
 
 class Rewards:
-    apple = 100
-    lose = -1000
+    apple   = 100
+    move    = -0.1
+    lose    = -10
 
 MAX_TRIALS = 1000
 SAMPLE_EVERY = 1
 
+# top right bottom left
 class QBot:
     def __init__(self):
         self.Q_table = dict()
-        self.gamma = 0.95 #0.8 # discounted rewards
+        # I think the number of rules is 82 ^^
+        # self.q_table = np.random.uniform(low=-2, high=0, size=82)
+        self.gamma = 0.2  # 0.8 #0.95 #0.8 # discounted rewards
         self.alpha = 0.1 # learning rate
         self.frame_buffer = []
         self.episode_frame_count = 0
@@ -63,6 +69,9 @@ class QBot:
         self.vis_data['episodes'] = []
         self.vis_data['scores'] = []
         self.vis_data['rules'] = []
+
+        self.use_bot = True
+        #self.use_bot = False
 
     def show_vis_data(self):
         data = self.vis_data
@@ -150,10 +159,18 @@ class QBot:
             # snek eat apple
             self.reward_snek(Rewards.apple)
             self.end_episode()
+        else:
+            self.reward_snek(Rewards.move)
 
         self.last_apple_position = apple.position
         self.last_snek_position = snek.position
-        action_to_be_taken = self.get_action(state)
+
+        if self.use_bot is True:
+            if snek.score > 99:
+                self.use_bot = False
+            action_to_be_taken = bot.play(state)
+        else:
+            action_to_be_taken = self.get_action(state)
 
         config = (
             self.make_env(snek, apple),
@@ -174,20 +191,6 @@ class QBot:
                 snek.velocity)
             # and not self.out_of_bounds(snek, action)
         ]
-        """
-        if cheat is True:
-            old_length = len(possible_actions)
-            possible_actions = [
-                action
-                for action
-                in possible_actions if self.check_direction(
-                    snek, map_action(action)) is None
-            ]
-            if old_length != len(possible_actions):
-                print("CHEATING", old_length, len(possible_actions))
-        if not possible_actions:
-            return actions
-        """
         return possible_actions
 
     def get_action(self, game_state):
@@ -195,6 +198,9 @@ class QBot:
 
         possible_actions = self.get_possible_actions(snek)
 
+        """
+        # this chance code is weird, not sure what it does
+        # TODO: rewrite
         chance_initial = 60
         chance_adjuster = self.trials
         chance = max(1, chance_initial - chance_adjuster)
@@ -204,10 +210,9 @@ class QBot:
             *[False for i in range(200)]])
         if take_random_action:
             self.random_moves += 1
-            #print("Going random!")
-            #return random.choice(possible_actions)
             return random.choice(
                 self.get_possible_actions(snek, cheat=True))
+        """
 
         env = self.make_env(game_state.snek, game_state.apple)
         rewards = [
@@ -230,7 +235,6 @@ class QBot:
         if len(best_actions) > 1:
             (random_action, _) = random.choice(best_actions)
             return random_action
-        # print("best action", rewards)
         return best_action
 
     def reward_snek(self, reward):
@@ -245,11 +249,9 @@ class QBot:
             optimal_future_value = max([
                 self.get_Q(future_state, action)
                 for action in actions])
-            update_value = self.alpha * (
-                reward +
-                self.gamma * optimal_future_value -
-                self.get_Q(state, action)
-            )
+
+            update_value = self.calculate_update_score(
+                state, action, reward, optimal_future_value)
             self.set_Q(state, action, update_value)
 
             frame_size -= 1
@@ -257,6 +259,32 @@ class QBot:
 
         self.frame_buffer = self.frame_buffer[-min_frame_size:]
         self.episode_frame_count = 0
+
+    def calculate_update_score(
+        self, state, action, reward, optimal_future_value):
+        #"""
+        update_value = self.alpha * (
+            reward +
+            self.gamma * optimal_future_value -
+            self.get_Q(state, action)
+        )
+        #"""
+        """
+        update_value = (
+            (1 - self.alpha) * self.get_Q(state, action) +
+            self.alpha * (reward + self.gamma * optimal_future_value)
+        )
+        """
+        """
+        update_value = (
+            self.get_Q(state, action)
+            + self.alpha * (
+                reward + self.gamma * optimal_future_value -
+                self.get_Q(state, action)
+            )
+        )
+        """
+        return update_value
 
     def trigger_game_over(self, snek):
         self.reward_snek(Rewards.lose)

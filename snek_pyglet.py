@@ -11,10 +11,10 @@ from q_bot import QBot
 q_bot = QBot()
 
 RENDER = True
+USE_BOT = False
 USE_BOT = True
-# USE_BOT = False
 
-#USE_Q_BOT = False
+USE_Q_BOT = False
 USE_Q_BOT = True
 
 GAME_SIZE = 600
@@ -22,18 +22,18 @@ THING_SIZE = GAME_SIZE / (NBR_OF_CELLS + 1)
 
 white = (255, 255, 255)
 red = (255, 50, 50)
-_r = lambda: random.randrange(150, 250)
+_r = lambda: random.randrange(50, 250)
 random_color = lambda: (_r(), _r(), _r())
 
 class Bool:
     def __init__(self, is_true = True):
         self.is_true = is_true
-        add_key_listener("s", self.toggle)
 
     def toggle(self):
         self.is_true = not self.is_true
 
 SHOW_STATS = Bool(True)
+add_key_listener("s", SHOW_STATS.toggle)
 
 def draw_thing(thing, color = None):
     if color is None: color = random_color()
@@ -94,7 +94,7 @@ class Game:
 
     def setup_labels(self):
         if USE_Q_BOT:
-            #self.make_state_label()
+            # self.make_state_label()
             self.make_label(
                 on_update = lambda: f"random chance: {round(q_bot.random_chance*100)}%")
             self.make_label(
@@ -103,7 +103,6 @@ class Game:
                 on_update = lambda: f"trials: {q_bot.trials}")
             self.make_label(
                 on_update = lambda: f"rules: {len(q_bot.Q_table)}")
-
         self.make_label(
             on_update = lambda: f"average last {len(self.last_scores)}: {round(self.current_average, 3)}")
         self.make_label(
@@ -112,6 +111,8 @@ class Game:
             on_update = lambda: f"best score: {self.best_score}")
         self.make_label(
             on_update = lambda: f"score: {self.game.state.snek.score}")
+        self.make_label(
+            on_update = lambda: f"use_bot: {q_bot.use_bot}")
 
     def make_label(self, text = "", on_update = lambda: None):
         y = 20 * (len(self.labels) + 1)
